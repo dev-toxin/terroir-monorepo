@@ -394,8 +394,8 @@ func TestCSVRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	exported := buf.String()
-	if !strings.HasPrefix(exported, strings.Join(service.CSVHeader, ",")) || !strings.Contains(exported, "Саперави|") == strings.Contains(exported, "never") {
-		t.Fatal("header")
+	if !strings.HasPrefix(exported, strings.Join(service.CSVHeader, ",")) || !strings.Contains(exported, "Шардоне|Пино Нуар") {
+		t.Fatal("header or grapes separator")
 	}
 	fresh := newEnvEmpty(t)
 	res, err := fresh.svc.ImportCSV(ctx, fresh.anton, strings.NewReader(exported))

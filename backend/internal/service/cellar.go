@@ -13,20 +13,20 @@ import (
 
 // WinePatch carries optional fields for PATCH /v1/wines/{id}.
 type WinePatch struct {
-	Name        *string           `json:"name"`
-	Producer    *string           `json:"producer"`
-	Country     *string           `json:"country"`
-	Region      *string           `json:"region"`
-	Appellation *string           `json:"appellation"`
-	Grapes      *[]string         `json:"grapes"`
-	Vintage     **int             `json:"vintage"`
-	Color       *domain.Color     `json:"color"`
-	Sweetness   *domain.Sweetness `json:"sweetness"`
-	ABV         **float64         `json:"abv"`
-	Body        *int              `json:"body"`
-	Acidity     *int              `json:"acidity"`
-	Tannin      *int              `json:"tannin"`
-	StyleNotes  *string           `json:"style_notes"`
+	Name        Opt[string]           `json:"name"`
+	Producer    Opt[string]           `json:"producer"`
+	Country     Opt[string]           `json:"country"`
+	Region      Opt[string]           `json:"region"`
+	Appellation Opt[string]           `json:"appellation"`
+	Grapes      Opt[[]string]         `json:"grapes"`
+	Vintage     Opt[int]              `json:"vintage"` // null = non-vintage
+	Color       Opt[domain.Color]     `json:"color"`
+	Sweetness   Opt[domain.Sweetness] `json:"sweetness"`
+	ABV         Opt[float64]          `json:"abv"`
+	Body        Opt[int]              `json:"body"`
+	Acidity     Opt[int]              `json:"acidity"`
+	Tannin      Opt[int]              `json:"tannin"`
+	StyleNotes  Opt[string]           `json:"style_notes"`
 }
 
 // CreateWine validates and stores a wine card in the actor's cellar.
@@ -56,30 +56,20 @@ func (s *Service) UpdateWine(ctx context.Context, a Actor, id string, p WinePatc
 	if err != nil {
 		return w, err
 	}
-	setStr(&w.Name, p.Name)
-	setStr(&w.Producer, p.Producer)
-	setStr(&w.Country, p.Country)
-	setStr(&w.Region, p.Region)
-	setStr(&w.Appellation, p.Appellation)
-	setStr(&w.StyleNotes, p.StyleNotes)
-	if p.Grapes != nil {
-		w.Grapes = *p.Grapes
-	}
-	if p.Vintage != nil {
-		w.Vintage = *p.Vintage
-	}
-	if p.Color != nil {
-		w.Color = *p.Color
-	}
-	if p.Sweetness != nil {
-		w.Sweetness = *p.Sweetness
-	}
-	if p.ABV != nil {
-		w.ABV = *p.ABV
-	}
-	setInt(&w.Body, p.Body)
-	setInt(&w.Acidity, p.Acidity)
-	setInt(&w.Tannin, p.Tannin)
+	p.Name.Apply(&w.Name)
+	p.Producer.Apply(&w.Producer)
+	p.Country.Apply(&w.Country)
+	p.Region.Apply(&w.Region)
+	p.Appellation.Apply(&w.Appellation)
+	p.StyleNotes.Apply(&w.StyleNotes)
+	p.Grapes.Apply(&w.Grapes)
+	p.Vintage.ApplyPtr(&w.Vintage)
+	p.Color.Apply(&w.Color)
+	p.Sweetness.Apply(&w.Sweetness)
+	p.ABV.ApplyPtr(&w.ABV)
+	p.Body.Apply(&w.Body)
+	p.Acidity.Apply(&w.Acidity)
+	p.Tannin.Apply(&w.Tannin)
 	w.Normalize()
 	if err := w.Validate(); err != nil {
 		return w, err
@@ -97,15 +87,15 @@ func (s *Service) DeleteWine(ctx context.Context, a Actor, id string) error {
 
 // ItemPatch carries optional fields for PATCH /v1/cellar/items/{id}.
 type ItemPatch struct {
-	Quantity           *int       `json:"quantity"`
-	StorageLocation    *string    `json:"storage_location"`
-	PurchasePriceMinor **int64    `json:"purchase_price_minor"`
-	Currency           *string    `json:"currency"`
-	PurchasePlace      *string    `json:"purchase_place"`
-	PurchasedAt        **time.Time `json:"purchased_at"`
-	DrinkFrom          **int      `json:"drink_from"`
-	DrinkUntil         **int      `json:"drink_until"`
-	Notes              *string    `json:"notes"`
+	Quantity           Opt[int]       `json:"quantity"`
+	StorageLocation    Opt[string]    `json:"storage_location"`
+	PurchasePriceMinor Opt[int64]     `json:"purchase_price_minor"`
+	Currency           Opt[string]    `json:"currency"`
+	PurchasePlace      Opt[string]    `json:"purchase_place"`
+	PurchasedAt        Opt[time.Time] `json:"purchased_at"`
+	DrinkFrom          Opt[int]       `json:"drink_from"`
+	DrinkUntil         Opt[int]       `json:"drink_until"`
+	Notes              Opt[string]    `json:"notes"`
 }
 
 // ItemView is a cellar entry enriched with the drinking-window status.
@@ -180,23 +170,15 @@ func (s *Service) UpdateItem(ctx context.Context, a Actor, id string, p ItemPatc
 		return ItemView{}, err
 	}
 	it := e.Item
-	setInt(&it.Quantity, p.Quantity)
-	setStr(&it.StorageLocation, p.StorageLocation)
-	setStr(&it.Currency, p.Currency)
-	setStr(&it.PurchasePlace, p.PurchasePlace)
-	setStr(&it.Notes, p.Notes)
-	if p.PurchasePriceMinor != nil {
-		it.PurchasePriceMinor = *p.PurchasePriceMinor
-	}
-	if p.PurchasedAt != nil {
-		it.PurchasedAt = *p.PurchasedAt
-	}
-	if p.DrinkFrom != nil {
-		it.DrinkFrom = *p.DrinkFrom
-	}
-	if p.DrinkUntil != nil {
-		it.DrinkUntil = *p.DrinkUntil
-	}
+	p.Quantity.Apply(&it.Quantity)
+	p.StorageLocation.Apply(&it.StorageLocation)
+	p.Currency.Apply(&it.Currency)
+	p.PurchasePlace.Apply(&it.PurchasePlace)
+	p.Notes.Apply(&it.Notes)
+	p.PurchasePriceMinor.ApplyPtr(&it.PurchasePriceMinor)
+	p.PurchasedAt.ApplyPtr(&it.PurchasedAt)
+	p.DrinkFrom.ApplyPtr(&it.DrinkFrom)
+	p.DrinkUntil.ApplyPtr(&it.DrinkUntil)
 	it.Normalize()
 	if err := it.Validate(); err != nil {
 		return ItemView{}, err
@@ -317,16 +299,4 @@ func untilOr(v ItemView) int {
 // History returns drink events of the cellar.
 func (s *Service) History(ctx context.Context, a Actor, limit int) ([]domain.ConsumptionEvent, error) {
 	return s.store.ListConsumption(ctx, a.CellarID, "", limit)
-}
-
-func setStr(dst *string, v *string) {
-	if v != nil {
-		*dst = *v
-	}
-}
-
-func setInt(dst *int, v *int) {
-	if v != nil {
-		*dst = *v
-	}
 }

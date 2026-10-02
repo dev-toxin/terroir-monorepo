@@ -19,22 +19,28 @@ services:
       retries: 5
 
   backend:
-    image: golang:1.22
+    build:
+      context: ./backend
     container_name: terroir-backend
-    working_dir: /app
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
     environment:
       APP_ENV: ${APP_ENV:-local}
-      BACKEND_HTTP_ADDR: ${BACKEND_HTTP_ADDR:-:8080}
+      BACKEND_HTTP_ADDR: ":8080"
+      STORAGE: postgres
+      AUTO_SEED: ${AUTO_SEED:-true}
       DATABASE_URL: postgres://${POSTGRES_USER:-terroir_app}:${POSTGRES_PASSWORD:-change_me_local_password}@postgres:5432/${POSTGRES_DB:-terroir}?sslmode=disable
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_AUTH_SCHEME: ${LLM_AUTH_SCHEME:-Bearer}
+      LLM_EXTRA_HEADERS: ${LLM_EXTRA_HEADERS:-}
+      LLM_MONTHLY_BUDGET: ${LLM_MONTHLY_BUDGET:-0}
     ports:
       - "8080:8080"
-    volumes:
-      - ./backend:/app
-    command: ["go", "run", "./cmd/api"]
 
 volumes:
   postgres_data:

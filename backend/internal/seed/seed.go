@@ -128,9 +128,21 @@ func Run(ctx context.Context, st storage.Store, now time.Time) error {
 		return err
 	}
 
+	// Drinking windows (and vintages) in the table are written as of 2026; shift them so the
+	// demo keeps the same mix of "too early / peak / last call / late" in any year.
+	shift := now.Year() - 2026
 	wineIDs := map[string]string{}
 	itemIDs := map[string]string{}
 	for _, b := range bottles {
+		if b.vintage != 0 {
+			b.vintage += shift
+		}
+		if b.from != 0 {
+			b.from += shift
+		}
+		if b.until != 0 {
+			b.until += shift
+		}
 		w := domain.Wine{ID: "w-" + b.key, CellarID: CellarID, Name: b.name, Producer: b.producer, Country: b.country,
 			Region: b.region, Grapes: b.grapes, Color: b.color, Sweetness: b.sweet, Body: b.body, Acidity: b.acid, Tannin: b.tannin,
 			StyleNotes: b.notes, Source: domain.SourceSeed, CreatedAt: created, UpdatedAt: created}

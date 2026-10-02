@@ -23,7 +23,6 @@ type Service struct {
 	store storage.Store
 	clock domain.Clock
 	newID func() string
-	chat  *Assistant // optional; set via SetAssistant
 }
 
 // New constructs a Service.

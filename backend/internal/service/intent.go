@@ -24,13 +24,19 @@ type dishKeyword struct {
 }
 
 var dishKeywords = []dishKeyword{
-	{"стейк", func(r *domain.Recipe) { r.MainIngredient, r.CookingMethod, r.Richness = domain.IngBeef, domain.MethodGrilled, 5 }},
-	{"steak", func(r *domain.Recipe) { r.MainIngredient, r.CookingMethod, r.Richness = domain.IngBeef, domain.MethodGrilled, 5 }},
+	{"стейк", func(r *domain.Recipe) {
+		r.MainIngredient, r.CookingMethod, r.Richness = domain.IngBeef, domain.MethodGrilled, 5
+	}},
+	{"steak", func(r *domain.Recipe) {
+		r.MainIngredient, r.CookingMethod, r.Richness = domain.IngBeef, domain.MethodGrilled, 5
+	}},
 	{"говя", func(r *domain.Recipe) { r.MainIngredient = domain.IngBeef }},
 	{"beef", func(r *domain.Recipe) { r.MainIngredient = domain.IngBeef }},
 	{"баран", func(r *domain.Recipe) { r.MainIngredient = domain.IngLamb }},
 	{"lamb", func(r *domain.Recipe) { r.MainIngredient = domain.IngLamb }},
-	{"шашлык", func(r *domain.Recipe) { r.MainIngredient, r.CookingMethod, r.Richness = domain.IngPork, domain.MethodGrilled, 4 }},
+	{"шашлык", func(r *domain.Recipe) {
+		r.MainIngredient, r.CookingMethod, r.Richness = domain.IngPork, domain.MethodGrilled, 4
+	}},
 	{"свин", func(r *domain.Recipe) { r.MainIngredient = domain.IngPork }},
 	{"pork", func(r *domain.Recipe) { r.MainIngredient = domain.IngPork }},
 	{"кур", func(r *domain.Recipe) { r.MainIngredient = domain.IngPoultry }},
