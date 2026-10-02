@@ -49,3 +49,10 @@ ios/Flutter/Flutter.podspec
 .postgres-data/
 .pgadmin-data/
 .tmp/
+
+# Local IDE folder (whole), local DBs, temp
+.idea/
+*.db
+*.db-shm
+*.db-wal
+tmp/
