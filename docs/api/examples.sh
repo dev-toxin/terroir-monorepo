@@ -105,10 +105,10 @@ curl -s -H "$AUTH" $BASE/v1/reminders
 # Экспорт всего погреба в CSV
 curl -s -H "$AUTH" $BASE/v1/export.csv -o terroir-cellar.csv
 # Импорт CSV (обязательны колонки name и color; сорта через «|»)
-printf 'name,color,grapes,vintage,quantity,drink_from,drink_until\nСаперави импорт,red,Саперави,2020,2,2024,2030\n' > import-sample.csv
-curl -s -H "$AUTH" -H "Content-Type: text/csv" -X POST $BASE/v1/import.csv --data-binary @import-sample.csv
+printf 'name,color,grapes,vintage,quantity,drink_from,drink_until\nСаперави импорт,red,Саперави,2020,2,2024,2030\n' > /tmp/terroir-import-sample.csv
+curl -s -H "$AUTH" -H "Content-Type: text/csv" -X POST $BASE/v1/import.csv --data-binary @/tmp/terroir-import-sample.csv
 # То же multipart-формой
-curl -s -H "$AUTH" -X POST $BASE/v1/import.csv -F file=@import-sample.csv
+curl -s -H "$AUTH" -X POST $BASE/v1/import.csv -F file=@/tmp/terroir-import-sample.csv
 
 # ── Ошибки (единый формат {"error":{"code","message","field"}}) ──
 curl -s $BASE/v1/wines                                                       # 401 unauthorized
