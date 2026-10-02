@@ -1,3 +1,5 @@
+> 🗄 Archived (2026-10-02): промпт эпохи сканера этикеток. Актуальные — `assistant-ru.md` / `assistant-en.md`; сочетания теперь считает детерминированный движок (`docs/architecture/pairing.md`).
+
 # Wine card scanner prompt
 
 ## Назначение

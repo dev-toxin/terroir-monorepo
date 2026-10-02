@@ -1,0 +1,88 @@
+[
+  {
+    "id": "Q01",
+    "user": "anton",
+    "question": "Что открыть к токпокки с кимчи?",
+    "intent": "pair_recipe",
+    "expect": {
+      "min_bottles": 1,
+      "in_stock_only": true,
+      "top_max_tannin": 2,
+      "top_colors": ["white", "rose", "sparkling", "orange", "red"],
+      "answer_contains_any": ["сладость", "освежает", "остр"]
+    },
+    "why": "Острота 3/3: танины и алкоголь жгут, нужна свежесть или лёгкая сладость."
+  },
+  {
+    "id": "Q02",
+    "user": "anton",
+    "question": "Что открыть к стейку рибай?",
+    "intent": "pair_recipe",
+    "expect": { "min_bottles": 1, "in_stock_only": true, "top_colors": ["red"], "top_min_tannin": 4 },
+    "why": "Жирная говядина на гриле — танинное плотное красное."
+  },
+  {
+    "id": "Q03",
+    "user": "anton",
+    "question": "Что пора выпить из погреба?",
+    "intent": "drink_now",
+    "expect": { "min_bottles": 1, "in_stock_only": true, "top_windows": ["late", "last_call"] },
+    "why": "Сначала то, что уже вышло из окна или в последнем году окна."
+  },
+  {
+    "id": "Q04",
+    "user": "elena",
+    "question": "Что купить снова?",
+    "intent": "buy_again",
+    "expect": { "answer_contains_all": ["Саперави резерв"], "answer_not_contains": ["Ркацители"] },
+    "why": "Только оценки ≥4 Елены; Ркацители она оценила на 3."
+  },
+  {
+    "id": "Q05",
+    "user": "anton",
+    "question": "Что открыть к лососю в духовке?",
+    "intent": "pair_recipe",
+    "expect": { "min_bottles": 1, "in_stock_only": true, "top_max_tannin": 2 },
+    "why": "Жирная рыба: белое/розовое или лёгкое кислотное красное, не танинное."
+  },
+  {
+    "id": "Q06",
+    "user": "anton",
+    "question": "Что подать к говяжьим щёкам в красном вине?",
+    "intent": "pair_recipe",
+    "expect": { "min_bottles": 1, "in_stock_only": true, "top_colors": ["red"], "top_min_body": 4 },
+    "why": "Долгое томление и соус на красном вине — плотное красное."
+  },
+  {
+    "id": "Q07",
+    "user": "anton",
+    "question": "Что открыть к хачапури на грузинский ужин?",
+    "intent": "pair_recipe",
+    "expect": { "min_bottles": 1, "in_stock_only": true, "top_colors": ["orange", "white", "red"] },
+    "why": "Сыр и тесто: янтарное/белое с телом; в прошлый раз Киси янтарное зашло (5/5)."
+  },
+  {
+    "id": "Q08",
+    "user": "anton",
+    "question": "Что открыть к пасте болоньезе?",
+    "intent": "pair_recipe",
+    "expect": { "min_bottles": 1, "in_stock_only": true, "top_colors": ["red"] },
+    "why": "Томатный соус — красное с кислотностью; Цимлянский уже был удачным."
+  },
+  {
+    "id": "Q09",
+    "user": "anton",
+    "question": "Что открыть к курице тандури?",
+    "intent": "pair_recipe",
+    "expect": { "min_bottles": 1, "in_stock_only": true, "top_max_tannin": 3 },
+    "why": "Пряное и острое: без мощных танинов."
+  },
+  {
+    "id": "Q10",
+    "user": "anton",
+    "question": "What should I open with a steak tonight?",
+    "intent": "pair_recipe",
+    "expect": { "min_bottles": 1, "in_stock_only": true, "top_colors": ["red"], "answer_contains_any": ["I would open"] },
+    "why": "Тот же сценарий на английском: ответ на языке вопроса."
+  }
+]

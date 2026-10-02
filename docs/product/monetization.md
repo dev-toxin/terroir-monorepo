@@ -1,3 +1,5 @@
+> ⚠️ Устарело с 2026-09-28: продукт пересмотрен, см. [docs/product/vision-2026-09.md](../product/vision-2026-09.md).
+
 # Monetization
 
 ## Модель

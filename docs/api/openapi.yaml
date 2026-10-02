@@ -1,0 +1,725 @@
+openapi: 3.1.0
+info:
+  title: Terroir API
+  version: "1.0.0"
+  description: |
+    Personal wine assistant with memory. JSON API v1.
+    Source of truth: backend/internal/transport/http/router.go, handlers.go, internal/service/*.go.
+    Demo (after `make reset-dev && make dev`): base http://localhost:8080, tokens `dev-anton-token`, `dev-elena-token`.
+    All /v1 routes accept `?lang=ru|en` to override the user locale for labels/reasons.
+    Errors always have the shape `{"error":{"code","message","field?"}}`.
+servers:
+  - url: http://localhost:8080
+security:
+  - bearer: []
+
+tags:
+  - name: health
+  - name: wines
+  - name: cellar
+  - name: taste
+  - name: recipes
+  - name: assistant
+  - name: data
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      security: []
+      summary: Liveness; shows storage kind and LLM provider
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Health" } } } }
+  /ready:
+    get:
+      tags: [health]
+      security: []
+      summary: Readiness (pings the database)
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Health" } } } }
+        "503": { description: Database unavailable, content: { application/json: { schema: { $ref: "#/components/schemas/Health" } } } }
+
+  /v1/me:
+    get:
+      tags: [health]
+      summary: Current user and cellar
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: "#/components/schemas/User" }
+                  cellar_id: { type: string, examples: [c-home] }
+                  role: { type: string, enum: [owner, member] }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /v1/wines:
+    get:
+      tags: [wines]
+      summary: List wine cards of the household cellar
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/WineList" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [wines]
+      summary: Create a wine card
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/WineInput" } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Wine" } } } }
+        "400": { $ref: "#/components/responses/Validation" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /v1/wines/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [wines]
+      summary: Get a wine card
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Wine" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [wines]
+      summary: Partially update a wine card (absent field = unchanged; `vintage`/`abv` may be null)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/WineInput" } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Wine" } } } }
+        "400": { $ref: "#/components/responses/Validation" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [wines]
+      summary: Delete a wine card without bottles
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+
+  /v1/cellar/items:
+    get:
+      tags: [cellar]
+      summary: List bottles (default only quantity > 0)
+      parameters:
+        - { name: color, in: query, schema: { $ref: "#/components/schemas/Color" } }
+        - { name: country, in: query, schema: { type: string }, description: case-insensitive exact match }
+        - { name: grape, in: query, schema: { type: string }, description: RU/EN name or alias, e.g. saperavi / Саперави }
+        - { name: location, in: query, schema: { type: string }, description: substring of storage_location }
+        - { name: q, in: query, schema: { type: string }, description: substring over name/producer/region/grapes/notes }
+        - { name: ready_to_drink, in: query, schema: { type: boolean }, description: "ready/peak/last_call/late, sorted by urgency" }
+        - { name: include_empty, in: query, schema: { type: boolean }, description: include rows with quantity 0 (history) }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/ItemViewList" } } } }
+        "400": { $ref: "#/components/responses/Validation" }
+    post:
+      tags: [cellar]
+      summary: Add bottles — either for an existing `wine_id` or with an inline `wine`
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ItemInput" } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/ItemView" } } } }
+        "400": { $ref: "#/components/responses/Validation" }
+  /v1/cellar/items/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [cellar]
+      summary: Get one bottle stack
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/ItemView" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [cellar]
+      summary: Partially update a bottle stack (nullable fields accept null)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ItemPatch" } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/ItemView" } } } }
+        "400": { $ref: "#/components/responses/Validation" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/cellar/items/{id}/drink:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [cellar]
+      summary: "«Выпил» — atomically decrements quantity and records the event (body optional)"
+      requestBody:
+        required: false
+        content: { application/json: { schema: { $ref: "#/components/schemas/DrinkRequest" } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/DrinkResult" } } } }
+        "400": { $ref: "#/components/responses/Validation" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/OutOfStock" }
+  /v1/cellar/items/{id}/recipes:
+    parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/Limit" }]
+    get:
+      tags: [cellar, recipes]
+      summary: What to cook from household recipes for this bottle (ranked, with reasons)
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/RecipeSuggestionList" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/cellar/summary:
+    get:
+      tags: [cellar]
+      summary: Totals by color/window and top-N bottles to open soon
+      parameters:
+        - { name: top, in: query, schema: { type: integer, default: 5 } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Summary" } } } }
+  /v1/cellar/history:
+    get:
+      tags: [cellar]
+      summary: Drink events of the household, newest first
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, default: 50 } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/ConsumptionEvent" } }
+                  count: { type: integer }
+  /v1/cellar/buy-again:
+    get:
+      tags: [cellar]
+      summary: Wines the current user rated >= 4 on average
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/BuyAgainItem" } }
+                  count: { type: integer }
+  /v1/reminders:
+    get:
+      tags: [cellar]
+      summary: "«Пора открыть» — last_call/late bottles and single peak bottles (selection only, no delivery)"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        bottle: { $ref: "#/components/schemas/ItemView" }
+                        message: { type: string }
+                  count: { type: integer }
+
+  /v1/taste/survey/next:
+    get:
+      tags: [taste]
+      summary: Next batch of 5–7 unanswered survey questions
+      parameters:
+        - { name: size, in: query, schema: { type: integer, minimum: 5, maximum: 7, default: 6 } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/SurveyBatch" } } } }
+  /v1/taste/survey/answers:
+    post:
+      tags: [taste]
+      summary: Answer questions; applied deterministically, all-or-nothing
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answers]
+              properties:
+                answers: { type: array, minItems: 1, items: { $ref: "#/components/schemas/AnswerInput" } }
+      responses:
+        "200": { description: Updated profile, content: { application/json: { schema: { $ref: "#/components/schemas/TasteProfile" } } } }
+        "400": { $ref: "#/components/responses/Validation" }
+  /v1/taste/profile:
+    get:
+      tags: [taste]
+      summary: Taste profile of the current user
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/TasteProfile" } } } }
+
+  /v1/recipes:
+    get:
+      tags: [recipes]
+      summary: List household recipes
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/Recipe" } }
+                  count: { type: integer }
+    post:
+      tags: [recipes]
+      summary: Create a recipe
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/RecipeInput" } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Recipe" } } } }
+        "400": { $ref: "#/components/responses/Validation" }
+  /v1/recipes/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    get:
+      tags: [recipes]
+      summary: Get a recipe
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Recipe" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [recipes]
+      summary: Partially update a recipe
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/RecipeInput" } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Recipe" } } } }
+        "400": { $ref: "#/components/responses/Validation" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [recipes]
+      summary: Delete a recipe
+      responses:
+        "204": { description: Deleted }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/recipes/{id}/wines:
+    parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/Limit" }]
+    get:
+      tags: [recipes]
+      summary: What to open from the cellar for this recipe (in-stock only, ranked, with reasons)
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/WineSuggestionList" } } } }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/recipes/{id}/feedback:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    post:
+      tags: [recipes]
+      summary: Rate how a wine went with this recipe (feeds the pairing engine)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [wine_id, rating]
+              properties:
+                wine_id: { type: string, examples: [w-pinot-crimea] }
+                rating: { type: integer, minimum: 1, maximum: 5 }
+                note: { type: string }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/PairingFeedback" } } } }
+        "400": { $ref: "#/components/responses/Validation" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /v1/chat:
+    post:
+      tags: [assistant]
+      summary: Ask the assistant; answers only from cellar, profile, recipes and memory
+      description: |
+        Bottles in `answer` are tagged `[item:<id>]`; every referenced id is validated against
+        in-stock bottles. If the model references anything else (or fails), the deterministic
+        answer is returned and `fallback=true`.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ChatRequest" } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/ChatResponse" } } } }
+        "400": { $ref: "#/components/responses/Validation" }
+        "429": { $ref: "#/components/responses/Budget" }
+
+  /v1/export.csv:
+    get:
+      tags: [data]
+      summary: Export the whole cellar (incl. empty rows) as CSV
+      responses:
+        "200":
+          description: CSV with header name,producer,country,region,appellation,grapes,vintage,color,sweetness,abv,quantity,storage_location,purchase_price_minor,currency,purchase_place,drink_from,drink_until,notes,style_notes (grapes separated by "|")
+          content: { text/csv: { schema: { type: string } } }
+  /v1/import.csv:
+    post:
+      tags: [data]
+      summary: Import bottles from CSV (raw body or multipart field `file`); `name` and `color` columns required
+      requestBody:
+        required: true
+        content:
+          text/csv: { schema: { type: string } }
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        "200": { description: OK (row errors are reported, valid rows imported), content: { application/json: { schema: { $ref: "#/components/schemas/ImportResult" } } } }
+        "400": { $ref: "#/components/responses/Validation" }
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Static per-user token (MVP). Demo — dev-anton-token / dev-elena-token.
+
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: string } }
+    Limit: { name: limit, in: query, schema: { type: integer, default: 5 } }
+
+  responses:
+    Validation:
+      description: "validation_error — invalid input (field is set when known)"
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Unauthorized:
+      description: "unauthorized — missing or invalid bearer token"
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: "not_found"
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Conflict:
+      description: "conflict — resource in use (e.g. wine with bottles) or already exists"
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    OutOfStock:
+      description: "out_of_stock — no bottles left"
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Budget:
+      description: "llm_budget_exceeded — monthly LLM budget exhausted"
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, enum: [validation_error, unauthorized, forbidden, not_found, conflict, out_of_stock, llm_budget_exceeded, internal, canceled] }
+            message: { type: string }
+            field: { type: string }
+      examples:
+        - error: { code: out_of_stock, message: no bottles left }
+
+    Health:
+      type: object
+      properties:
+        status: { type: string, enum: [ok, error] }
+        env: { type: string }
+        storage: { type: string, enum: [sqlite, memory, postgres] }
+        llm_provider: { type: string, enum: [mock, openai_compat] }
+        llm_model: { type: string }
+        database: { type: string, enum: [ok, unavailable] }
+
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        display_name: { type: string }
+        locale: { type: string, enum: [ru, en] }
+        telegram_id: { type: [integer, "null"] }
+        created_at: { type: string, format: date-time }
+
+    Color: { type: string, enum: [red, white, rose, orange, sparkling, dessert, fortified] }
+    Sweetness: { type: string, enum: [dry, off_dry, medium, sweet, ""] }
+
+    WineInput:
+      type: object
+      required: [name, color]
+      properties:
+        name: { type: string, maxLength: 200 }
+        producer: { type: string }
+        country: { type: string }
+        region: { type: string }
+        appellation: { type: string }
+        grapes: { type: array, items: { type: string } }
+        vintage: { type: [integer, "null"], minimum: 1900, maximum: 2100, description: null = non-vintage (Н/В) }
+        color: { $ref: "#/components/schemas/Color" }
+        sweetness: { $ref: "#/components/schemas/Sweetness" }
+        abv: { type: [number, "null"], minimum: 0, maximum: 25 }
+        body: { type: integer, minimum: 0, maximum: 5, description: 0 = unknown (inferred from grapes) }
+        acidity: { type: integer, minimum: 0, maximum: 5 }
+        tannin: { type: integer, minimum: 0, maximum: 5 }
+        style_notes: { type: string }
+    Wine:
+      allOf:
+        - $ref: "#/components/schemas/WineInput"
+        - type: object
+          properties:
+            id: { type: string, examples: [w-kokur] }
+            cellar_id: { type: string }
+            source: { type: string, enum: [manual, import, llm, seed] }
+            created_at: { type: string, format: date-time }
+            updated_at: { type: string, format: date-time }
+    WineList:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/Wine" } }
+        count: { type: integer }
+
+    CellarItem:
+      type: object
+      properties:
+        id: { type: string, examples: [i-krasnostop-don] }
+        cellar_id: { type: string }
+        wine_id: { type: string }
+        quantity: { type: integer, minimum: 0, description: rows with 0 are kept for history }
+        storage_location: { type: string }
+        purchase_price_minor: { type: [integer, "null"], description: kopecks/cents }
+        currency: { type: string, examples: [RUB] }
+        purchase_place: { type: string }
+        purchased_at: { type: [string, "null"], format: date-time }
+        drink_from: { type: [integer, "null"], description: year }
+        drink_until: { type: [integer, "null"], description: year }
+        notes: { type: string }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    WindowStatus:
+      type: string
+      enum: [unknown, too_early, ready, peak, last_call, late]
+      description: "ещё рано / пора пить / пик (средняя треть окна) / последний год окна / уже поздно"
+    ItemView:
+      type: object
+      properties:
+        item: { $ref: "#/components/schemas/CellarItem" }
+        wine: { $ref: "#/components/schemas/Wine" }
+        window: { $ref: "#/components/schemas/WindowStatus" }
+        window_label: { type: string, examples: [пора пить] }
+    ItemViewList:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/ItemView" } }
+        count: { type: integer }
+    ItemInput:
+      type: object
+      description: Exactly one of wine_id / wine.
+      properties:
+        wine_id: { type: string }
+        wine: { $ref: "#/components/schemas/WineInput" }
+        quantity: { type: integer, minimum: 0, default: 1 }
+        storage_location: { type: string }
+        purchase_price_minor: { type: [integer, "null"] }
+        currency: { type: string, description: required (3 letters) when price is set }
+        purchase_place: { type: string }
+        drink_from: { type: [integer, "null"] }
+        drink_until: { type: [integer, "null"] }
+        notes: { type: string }
+    ItemPatch:
+      type: object
+      properties:
+        quantity: { type: integer, minimum: 0 }
+        storage_location: { type: string }
+        purchase_price_minor: { type: [integer, "null"] }
+        currency: { type: string }
+        purchase_place: { type: string }
+        purchased_at: { type: [string, "null"], format: date-time }
+        drink_from: { type: [integer, "null"] }
+        drink_until: { type: [integer, "null"] }
+        notes: { type: string }
+
+    DrinkRequest:
+      type: object
+      properties:
+        bottles: { type: integer, minimum: 1, maximum: 24, default: 1 }
+        rating: { type: integer, minimum: 0, maximum: 5, description: 1..5, 0 = not rated }
+        note: { type: string }
+        occasion: { type: string }
+        paired_recipe_id: { type: [string, "null"], description: with rating > 0 also records pairing feedback }
+    ConsumptionEvent:
+      type: object
+      properties:
+        id: { type: string }
+        cellar_item_id: { type: string }
+        wine_id: { type: string }
+        user_id: { type: string }
+        bottles: { type: integer }
+        drunk_at: { type: string, format: date-time }
+        rating: { type: integer }
+        note: { type: string }
+        occasion: { type: string }
+        paired_recipe_id: { type: [string, "null"] }
+    DrinkResult:
+      type: object
+      properties:
+        event: { $ref: "#/components/schemas/ConsumptionEvent" }
+        item: { $ref: "#/components/schemas/CellarItem" }
+
+    Summary:
+      type: object
+      properties:
+        total_bottles: { type: integer }
+        total_items: { type: integer }
+        by_color: { type: object, additionalProperties: { type: integer } }
+        by_window: { type: object, additionalProperties: { type: integer } }
+        open_soon: { type: array, items: { $ref: "#/components/schemas/ItemView" } }
+        drunk_last_30_days: { type: integer }
+    BuyAgainItem:
+      type: object
+      properties:
+        wine: { $ref: "#/components/schemas/Wine" }
+        avg_rating: { type: number }
+        times_rated: { type: integer }
+        in_stock: { type: integer }
+
+    SurveyBatch:
+      type: object
+      properties:
+        questions:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string, examples: [q_body] }
+              text: { type: string }
+              type: { type: string, enum: [scale, choice, multi] }
+              axis: { type: string }
+              options:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    value: { type: string }
+                    label: { type: string }
+        answered: { type: integer }
+        total: { type: integer }
+        done: { type: boolean }
+    AnswerInput:
+      type: object
+      required: [question_id, values]
+      properties:
+        question_id: { type: string, examples: [q_acidity] }
+        values: { type: array, items: { type: string }, description: 'scale: ["1".."5"]; choice: one option value; multi: several' }
+    TasteProfile:
+      type: object
+      properties:
+        user_id: { type: string }
+        acidity: { type: integer, description: 1..5, 0 = unknown }
+        tannin: { type: integer }
+        body: { type: integer }
+        sweetness: { type: integer }
+        fruit_dark: { type: integer }
+        fruit_red: { type: integer }
+        oak: { type: integer }
+        spice_tolerance: { type: integer, minimum: 0, maximum: 3 }
+        liked_grapes: { type: array, items: { type: string } }
+        rejected_grapes: { type: array, items: { type: string } }
+        regions: { type: array, items: { type: string } }
+        colors: { type: array, items: { $ref: "#/components/schemas/Color" } }
+        budget_min_minor: { type: integer }
+        budget_max_minor: { type: integer }
+        budget_currency: { type: string }
+        notes: { type: string }
+        version: { type: integer }
+        updated_at: { type: string, format: date-time }
+        answered_questions: { type: integer }
+
+    RecipeInput:
+      type: object
+      required: [title, main_ingredient]
+      properties:
+        title: { type: string }
+        cuisine: { type: string }
+        main_ingredient: { type: string, enum: [beef, lamb, pork, poultry, fish, fatty_fish, seafood, cheese, vegetables, mushrooms, pasta, game, dessert] }
+        cooking_method: { type: string, enum: [raw, steamed, boiled, baked, fried, grilled, braised, stewed, smoked, other], default: other }
+        sauce: { type: string, enum: [none, cream, tomato, soy, citrus, sweet, herb, red_wine, curry], default: none }
+        spiciness: { type: integer, minimum: 0, maximum: 3 }
+        richness: { type: integer, minimum: 1, maximum: 5, default: 3 }
+        acidity: { type: integer, minimum: 1, maximum: 5, default: 2 }
+        time_minutes: { type: integer, minimum: 0 }
+        notes: { type: string }
+        tags: { type: array, items: { type: string } }
+    Recipe:
+      allOf:
+        - $ref: "#/components/schemas/RecipeInput"
+        - type: object
+          properties:
+            id: { type: string, examples: [r-steak] }
+            cellar_id: { type: string }
+            created_at: { type: string, format: date-time }
+            updated_at: { type: string, format: date-time }
+    PairingFeedback:
+      type: object
+      properties:
+        id: { type: string }
+        cellar_id: { type: string }
+        recipe_id: { type: string }
+        wine_id: { type: string }
+        user_id: { type: string }
+        rating: { type: integer }
+        note: { type: string }
+        created_at: { type: string, format: date-time }
+    WineSuggestion:
+      type: object
+      properties:
+        bottle: { $ref: "#/components/schemas/ItemView" }
+        score: { type: integer, minimum: 0, maximum: 100 }
+        reasons: { type: array, items: { type: string }, description: localized, sorted by impact }
+    WineSuggestionList:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/WineSuggestion" } }
+        count: { type: integer }
+    RecipeSuggestion:
+      type: object
+      properties:
+        recipe: { $ref: "#/components/schemas/Recipe" }
+        score: { type: integer }
+        reasons: { type: array, items: { type: string } }
+    RecipeSuggestionList:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: "#/components/schemas/RecipeSuggestion" } }
+        count: { type: integer }
+
+    ChatRequest:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string, maxLength: 2000 }
+        conversation_id: { type: string, description: omit to start a new conversation }
+    ChatResponse:
+      type: object
+      properties:
+        conversation_id: { type: string }
+        answer: { type: string, description: "bottles tagged as [item:<id>]" }
+        intent: { type: string, enum: [pair_recipe, drink_now, buy_again, general] }
+        recipe: { type: string, description: matched household recipe or ad-hoc dish }
+        bottles:
+          type: array
+          items:
+            type: object
+            properties:
+              item_id: { type: string }
+              wine_id: { type: string }
+              title: { type: string }
+              quantity: { type: integer }
+              storage_location: { type: string }
+              window: { $ref: "#/components/schemas/WindowStatus" }
+        provider: { type: string }
+        fallback: { type: boolean, description: true when the deterministic answer was used }
+
+    ImportResult:
+      type: object
+      properties:
+        imported: { type: integer }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              row: { type: integer }
+              message: { type: string }

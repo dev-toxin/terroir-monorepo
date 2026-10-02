@@ -1,0 +1,13 @@
+{
+  "name": "Terroir — винный помощник",
+  "short_name": "Terroir",
+  "description": "Personal wine assistant: cellar, taste profile, recipes, chat",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "background_color": "#faf8f6",
+  "theme_color": "#6b1d2a",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

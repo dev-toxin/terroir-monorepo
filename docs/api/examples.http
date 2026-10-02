@@ -1,0 +1,117 @@
+# Terroir API — примеры для копипасты в терминал.
+# Подготовка:  make reset-dev && make dev      (SQLite + демо-данные + mock LLM)
+# Затем в другом терминале:
+BASE=http://localhost:8080
+AUTH="Authorization: Bearer dev-anton-token"
+# Для Елены: AUTH="Authorization: Bearer dev-elena-token"
+# Подсказка: добавьте `| python3 -m json.tool` к любой команде для красивого вывода.
+
+# ── Здоровье ─────────────────────────────────────────────────────
+# Живость: тип хранилища и LLM-провайдер
+curl -s $BASE/health
+# Готовность (пингует БД)
+curl -s $BASE/ready
+# Кто я и какой у меня погреб
+curl -s -H "$AUTH" $BASE/v1/me
+
+# ── Погреб ───────────────────────────────────────────────────────
+# Сводка: бутылки по цветам/окнам, топ-5 «пора открыть»
+curl -s -H "$AUTH" "$BASE/v1/cellar/summary"
+# Все бутылки в наличии
+curl -s -H "$AUTH" "$BASE/v1/cellar/items"
+# Только то, что пора пить (отсортировано по срочности)
+curl -s -H "$AUTH" "$BASE/v1/cellar/items?ready_to_drink=true"
+# Белые
+curl -s -H "$AUTH" "$BASE/v1/cellar/items?color=white"
+# По сорту (RU или EN)
+curl -s -H "$AUTH" "$BASE/v1/cellar/items?grape=saperavi"
+# Поиск по тексту (кириллица в URL — через --data-urlencode)
+curl -s -G -H "$AUTH" "$BASE/v1/cellar/items" --data-urlencode "q=квеври"
+# Место хранения
+curl -s -G -H "$AUTH" "$BASE/v1/cellar/items" --data-urlencode "location=холодильник"
+# Включая закончившиеся (история сохраняется)
+curl -s -H "$AUTH" "$BASE/v1/cellar/items?include_empty=true"
+# Одна бутылка
+curl -s -H "$AUTH" $BASE/v1/cellar/items/i-krasnostop-don
+
+# Создать вино и сразу положить 2 бутылки (inline wine)
+curl -s -H "$AUTH" -X POST $BASE/v1/cellar/items -d '{
+  "wine": {"name":"Красностоп","producer":"Хутор «Тестовый»","country":"Россия","region":"Дон",
+           "grapes":["Красностоп"],"vintage":2021,"color":"red","sweetness":"dry","abv":13.5},
+  "quantity": 2, "storage_location": "Стеллаж A, полка 2",
+  "purchase_price_minor": 210000, "currency": "RUB", "drink_from": 2025, "drink_until": 2031
+}'
+# Или отдельно: карточка вина, затем бутылки по wine_id
+curl -s -H "$AUTH" -X POST $BASE/v1/wines -d '{"name":"Алиготе","color":"white","grapes":["Алиготе"],"vintage":2023}'
+curl -s -H "$AUTH" -X POST $BASE/v1/cellar/items -d '{"wine_id":"w-kokur","quantity":1,"storage_location":"Балкон"}'
+# Поправить бутылку (null — очистить поле)
+curl -s -H "$AUTH" -X PATCH $BASE/v1/cellar/items/i-kokur -d '{"notes":"подарок","drink_until":null}'
+
+# «Выпил» одним тапом: оценка, заметка, с каким рецептом (учит движок сочетаний)
+curl -s -H "$AUTH" -X POST $BASE/v1/cellar/items/i-krasnostop-don/drink \
+  -d '{"rating":5,"note":"идеально к шее на углях","paired_recipe_id":"r-pork-neck"}'
+# Последняя бутылка: второй раз будет 409 out_of_stock
+curl -s -H "$AUTH" -X POST $BASE/v1/cellar/items/i-cabernet-kuban/drink -d '{"rating":4}'
+curl -s -H "$AUTH" -X POST $BASE/v1/cellar/items/i-cabernet-kuban/drink
+# История «выпил»
+curl -s -H "$AUTH" "$BASE/v1/cellar/history?limit=10"
+
+# ── Сочетания ────────────────────────────────────────────────────
+# Что открыть из погреба к острому корейскому (не танинное!)
+curl -s -H "$AUTH" "$BASE/v1/recipes/r-tteokbokki/wines?limit=3"
+# Что открыть к стейку
+curl -s -H "$AUTH" "$BASE/v1/recipes/r-steak/wines?limit=3"
+# Что приготовить из наших рецептов к этой бутылке
+curl -s -H "$AUTH" "$BASE/v1/cellar/items/i-saperavi-kakheti/recipes?limit=3"
+# Причины на английском
+curl -s -H "$AUTH" "$BASE/v1/recipes/r-salmon/wines?limit=2&lang=en"
+# Оценить сочетание без «выпил»
+curl -s -H "$AUTH" -X POST $BASE/v1/recipes/r-salmon/feedback -d '{"wine_id":"w-pinot-crimea","rating":5,"note":"отлично"}'
+
+# ── Рецепты ──────────────────────────────────────────────────────
+curl -s -H "$AUTH" $BASE/v1/recipes
+curl -s -H "$AUTH" -X POST $BASE/v1/recipes -d '{"title":"Утка с вишнёвым соусом","cuisine":"домашняя",
+  "main_ingredient":"poultry","cooking_method":"baked","sauce":"sweet","spiciness":0,"richness":4,"acidity":3,"time_minutes":90,"tags":["праздник"]}'
+curl -s -H "$AUTH" -X PATCH $BASE/v1/recipes/r-bolognese -d '{"time_minutes":120}'
+
+# ── Профиль вкуса (опрос пачками) ────────────────────────────────
+# Следующая пачка из 5–7 неотвеченных вопросов
+curl -s -H "$AUTH" "$BASE/v1/taste/survey/next"
+curl -s -H "$AUTH" "$BASE/v1/taste/survey/next?size=5&lang=en"
+# Ответить (scale: "1".."5"; choice/multi: value опций)
+curl -s -H "$AUTH" -X POST $BASE/v1/taste/survey/answers -d '{"answers":[
+  {"question_id":"q_body","values":["4"]},
+  {"question_id":"q_acidity","values":["2"]},
+  {"question_id":"q_spice","values":["3"]},
+  {"question_id":"q_grapes_like","values":["saperavi","syrah"]}
+]}'
+# Текущий профиль
+curl -s -H "$AUTH" $BASE/v1/taste/profile
+
+# ── Чат-ассистент (отвечает из погреба; бутылки как [item:id]) ───
+curl -s -H "$AUTH" -X POST $BASE/v1/chat -d '{"message":"Что открыть к токпокки?"}'
+curl -s -H "$AUTH" -X POST $BASE/v1/chat -d '{"message":"Что открыть к стейку?"}'
+curl -s -H "$AUTH" -X POST $BASE/v1/chat -d '{"message":"Что пора выпить в ближайшее время?"}'
+curl -s -H "$AUTH" -X POST $BASE/v1/chat -d '{"message":"Что стоит купить снова?"}'
+curl -s -H "$AUTH" -X POST $BASE/v1/chat -d '{"message":"What should I open tonight with grilled salmon?"}'
+
+# ── Память и напоминания ─────────────────────────────────────────
+# «Вернуться и купить снова» — мои оценки ≥ 4
+curl -s -H "$AUTH" $BASE/v1/cellar/buy-again
+# «Пора открыть» — последний год окна / окно прошло
+curl -s -H "$AUTH" $BASE/v1/reminders
+
+# ── Владение данными ─────────────────────────────────────────────
+# Экспорт всего погреба в CSV
+curl -s -H "$AUTH" $BASE/v1/export.csv -o terroir-cellar.csv
+# Импорт CSV (обязательны колонки name и color; сорта через «|»)
+printf 'name,color,grapes,vintage,quantity,drink_from,drink_until\nСаперави импорт,red,Саперави,2020,2,2024,2030\n' > import-sample.csv
+curl -s -H "$AUTH" -H "Content-Type: text/csv" -X POST $BASE/v1/import.csv --data-binary @import-sample.csv
+# То же multipart-формой
+curl -s -H "$AUTH" -X POST $BASE/v1/import.csv -F file=@import-sample.csv
+
+# ── Ошибки (единый формат {"error":{"code","message","field"}}) ──
+curl -s $BASE/v1/wines                                                       # 401 unauthorized
+curl -s -H "$AUTH" -X POST $BASE/v1/wines -d '{"name":"X","color":"blue"}'   # 400 validation_error
+curl -s -H "$AUTH" $BASE/v1/recipes/nope/wines                               # 404 not_found
+curl -s -H "$AUTH" -X DELETE $BASE/v1/wines/w-saperavi-kakheti               # 409 conflict (есть бутылки)
