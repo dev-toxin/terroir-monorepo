@@ -2,6 +2,7 @@ package http_test
 
 import (
 	"bytes"
+	"net/url"
 	"testing"
 )
 
@@ -14,7 +15,7 @@ func TestImportMarkdownEndpoint(t *testing.T) {
 	if st != 200 || !bytes.Contains(body, []byte(`"imported":1`)) || !bytes.Contains(body, []byte(`"row":4`)) {
 		t.Fatalf("import.md: %d %s", st, body)
 	}
-	st, b := c.do("GET", "/v1/cellar/items?q=Тест Саперави", nil)
+	st, b := c.do("GET", "/v1/cellar/items?q="+url.QueryEscape("Тест Саперави"), nil)
 	expect(t, st, 200, b)
 	if len(items(b)) != 1 {
 		t.Fatalf("imported bottle not found: %v", b)

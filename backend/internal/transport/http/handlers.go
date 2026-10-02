@@ -447,3 +447,13 @@ func (a *api) importCSV(w http.ResponseWriter, r *http.Request, act service.Acto
 	}
 	writeJSON(w, http.StatusOK, res)
 }
+
+// importMarkdown imports a Markdown table (body: text/markdown or text/plain).
+func (a *api) importMarkdown(w http.ResponseWriter, r *http.Request, act service.Actor) {
+	res, err := a.svc.ImportMarkdown(r.Context(), act, io.LimitReader(r.Body, maxCSVBytes))
+	if err != nil {
+		a.fail(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}

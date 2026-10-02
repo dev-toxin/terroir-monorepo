@@ -87,6 +87,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 	auth("POST /v1/chat", a.chat)
 	auth("GET /v1/export.csv", a.exportCSV)
 	auth("POST /v1/import.csv", a.importCSV)
+	auth("POST /v1/import.md", a.importMarkdown)
 
 	if cfg.Static != nil {
 		mux.Handle("GET /app/", http.StripPrefix("/app", cfg.Static))
