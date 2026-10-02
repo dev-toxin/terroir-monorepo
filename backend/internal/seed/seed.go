@@ -14,7 +14,7 @@ import (
 	"github.com/anko-soft-lab/terroir/backend/internal/storage"
 )
 
-// Fixed ids/tokens so that docs/api/examples.http works after `make reset-dev`.
+// Fixed ids/tokens so that docs/api/examples.sh works after `make reset-dev`.
 const (
 	UserAnton  = "u-anton"
 	UserElena  = "u-elena"

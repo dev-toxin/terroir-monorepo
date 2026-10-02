@@ -115,3 +115,12 @@ curl -s $BASE/v1/wines                                                       # 4
 curl -s -H "$AUTH" -X POST $BASE/v1/wines -d '{"name":"X","color":"blue"}'   # 400 validation_error
 curl -s -H "$AUTH" $BASE/v1/recipes/nope/wines                               # 404 not_found
 curl -s -H "$AUTH" -X DELETE $BASE/v1/wines/w-saperavi-kakheti               # 409 conflict (есть бутылки)
+
+# ── Импорт из Markdown-таблицы (как в записной книжке) ───────────
+cat > /tmp/terroir-cellar.md <<'MD'
+| Вино | Винтаж | Сорт | Стиль | С чем подавать | Кол-во |
+|---|---|---|---|---|---|
+| Пример Красностоп | 2021 | Красностоп | красное сухое | шашлык | 2 |
+| Пример брют | Н/В | Шардоне, Пино Нуар | игристое брют | устрицы | 1 |
+MD
+curl -s -H "$AUTH" -H "Content-Type: text/markdown" -X POST "$BASE/v1/import.md" --data-binary @/tmp/terroir-cellar.md

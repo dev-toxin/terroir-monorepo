@@ -368,6 +368,18 @@ paths:
       responses:
         "200": { description: OK (row errors are reported, valid rows imported), content: { application/json: { schema: { $ref: "#/components/schemas/ImportResult" } } } }
         "400": { $ref: "#/components/responses/Validation" }
+  /v1/import.md:
+    post:
+      tags: [data]
+      summary: "Import bottles from a Markdown table: | Вино | Винтаж | Сорт | Стиль | С чем подавать | Кол-во | (RU or EN headers; Вино and Стиль required)"
+      requestBody:
+        required: true
+        content:
+          text/markdown: { schema: { type: string } }
+          text/plain: { schema: { type: string } }
+      responses:
+        "200": { description: OK (row errors are reported, valid rows imported), content: { application/json: { schema: { $ref: "#/components/schemas/ImportResult" } } } }
+        "400": { $ref: "#/components/responses/Validation" }
 
 components:
   securitySchemes:
