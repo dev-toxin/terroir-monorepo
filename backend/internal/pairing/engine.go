@@ -7,6 +7,7 @@ package pairing
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/anko-soft-lab/terroir/backend/internal/domain"
 )
@@ -119,10 +120,10 @@ func Score(in Input) Result {
 	if aff, ok := ingredientAffinity[r.MainIngredient][w.Color]; ok {
 		if aff > 0 {
 			s.add("color_ingredient", aff, fmt.Sprintf("%s вино — классика к блюду, где главное — %s", capital(colorRU[w.Color]), ingredientRU[r.MainIngredient]),
-				fmt.Sprintf("%s wine is a classic match for %s", capital(string(w.Color)), r.MainIngredient))
+				fmt.Sprintf("%s wine is a classic match for %s", capital(string(w.Color)), humanEN(string(r.MainIngredient))))
 		} else {
 			s.add("color_ingredient", aff, fmt.Sprintf("%s вино обычно не дружит с блюдом, где главное — %s", capital(colorRU[w.Color]), ingredientRU[r.MainIngredient]),
-				fmt.Sprintf("%s wine rarely suits %s", capital(string(w.Color)), r.MainIngredient))
+				fmt.Sprintf("%s wine rarely suits %s", capital(string(w.Color)), humanEN(string(r.MainIngredient))))
 		}
 	}
 
@@ -332,6 +333,9 @@ func applyFeedback(s *scorer, w domain.Wine, r domain.Recipe, fb []domain.Pairin
 		s.add("history_bad", delta, fmt.Sprintf("Прошлый раз сочетание не понравилось: %.1f из 5", avg), fmt.Sprintf("Last time this pairing disappointed: %.1f of 5", avg))
 	}
 }
+
+// humanEN turns an enum value like "fatty_fish" into "fatty fish".
+func humanEN(s string) string { return strings.ReplaceAll(s, "_", " ") }
 
 func capital(s string) string {
 	r := []rune(s)

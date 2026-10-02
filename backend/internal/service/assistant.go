@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/anko-soft-lab/terroir/backend/internal/domain"
 	"github.com/anko-soft-lab/terroir/backend/internal/llm"
@@ -213,7 +214,8 @@ func (a *Assistant) Chat(ctx context.Context, act Actor, req ChatRequest) (ChatR
 	if err := s.store.AddMessage(ctx, domain.ChatMessage{ID: s.newID(), ConversationID: conv, UserID: act.User.ID, Role: "user", Content: msg, CreatedAt: now}); err != nil {
 		return out, err
 	}
-	if err := s.store.AddMessage(ctx, domain.ChatMessage{ID: s.newID(), ConversationID: conv, UserID: act.User.ID, Role: "assistant", Content: answer, CreatedAt: now.Add(1)}); err != nil {
+	// +1ms: SQLite keeps microseconds, so +1ns would tie with the user message and break ordering.
+	if err := s.store.AddMessage(ctx, domain.ChatMessage{ID: s.newID(), ConversationID: conv, UserID: act.User.ID, Role: "assistant", Content: answer, CreatedAt: now.Add(time.Millisecond)}); err != nil {
 		return out, err
 	}
 	if fact := ExtractFact(msg); fact != "" {
