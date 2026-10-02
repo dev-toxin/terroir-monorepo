@@ -75,8 +75,9 @@ type chatResponse struct {
 
 // HTTPError is a non-2xx answer.
 type HTTPError struct {
-	Status int
-	Body   string
+	Status     int
+	Body       string
+	RetryAfter time.Duration // parsed from Retry-After (seconds), capped at 30s
 }
 
 func (e *HTTPError) Error() string { return fmt.Sprintf("llm http %d: %s", e.Status, e.Body) }
@@ -122,7 +123,7 @@ func (p *OpenAICompat) Complete(ctx context.Context, req Request) (Response, err
 	return Response{}, fmt.Errorf("llm: giving up after %d attempts: %w", p.cfg.MaxRetries+1, lastErr)
 }
 
-func retryAfter(*HTTPError) time.Duration { return 0 }
+func retryAfter(e *HTTPError) time.Duration { return e.RetryAfter }
 
 func (p *OpenAICompat) once(ctx context.Context, body []byte) (Response, error) {
 	ctx, cancel := context.WithTimeout(ctx, p.cfg.Timeout)
@@ -150,7 +151,11 @@ func (p *OpenAICompat) once(ctx context.Context, body []byte) (Response, error) 
 		if len(snippet) > 300 {
 			snippet = snippet[:300]
 		}
-		return Response{}, &HTTPError{Status: res.StatusCode, Body: snippet}
+		he := &HTTPError{Status: res.StatusCode, Body: snippet}
+		if s, err := strconv.Atoi(res.Header.Get("Retry-After")); err == nil && s > 0 {
+			he.RetryAfter = min(time.Duration(s)*time.Second, 30*time.Second)
+		}
+		return Response{}, he
 	}
 	var cr chatResponse
 	if err := json.Unmarshal(raw, &cr); err != nil {
@@ -165,5 +170,3 @@ func (p *OpenAICompat) once(ctx context.Context, body []byte) (Response, error) 
 	}
 	return Response{Content: cr.Choices[0].Message.Content, Usage: cr.Usage, Model: model}, nil
 }
-
-var _ = strconv.Itoa

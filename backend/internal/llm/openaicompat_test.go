@@ -179,7 +179,7 @@ func TestOpenAICompat_ContextTimeout(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
-		case <-time.After(2 * time.Second):
+		case <-time.After(300 * time.Millisecond):
 		}
 	}))
 	defer srv.Close()
@@ -191,7 +191,7 @@ func TestOpenAICompat_ContextTimeout(t *testing.T) {
 	if err == nil {
 		t.Fatal("want error")
 	}
-	if time.Since(start) > time.Second {
+	if time.Since(start) > 250*time.Millisecond {
 		t.Fatalf("did not respect context: %v", time.Since(start))
 	}
 }
@@ -200,7 +200,7 @@ func TestOpenAICompat_ProviderTimeout(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
-		case <-time.After(2 * time.Second):
+		case <-time.After(300 * time.Millisecond):
 		}
 	}))
 	defer srv.Close()
