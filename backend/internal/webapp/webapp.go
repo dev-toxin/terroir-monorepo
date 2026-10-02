@@ -4,8 +4,14 @@ package webapp
 import (
 	"embed"
 	"io/fs"
+	"mime"
 	"net/http"
 )
+
+func init() {
+	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
+	_ = mime.AddExtensionType(".svg", "image/svg+xml")
+}
 
 //go:embed static
 var staticFS embed.FS

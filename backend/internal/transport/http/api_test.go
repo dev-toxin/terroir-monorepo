@@ -502,8 +502,17 @@ func TestCSVExportImport(t *testing.T) {
 func TestStaticApp(t *testing.T) {
 	c := newClient(t)
 	st, raw := c.raw("GET", "/app/", nil, "")
-	if st != 200 || !bytes.Contains(raw, []byte("Terroir")) {
+	if st != 200 || !bytes.Contains(raw, []byte("Terroir")) || !bytes.Contains(raw, []byte("app.js")) {
 		t.Fatalf("app: %d", st)
+	}
+	for _, p := range []string{"/app/app.js", "/app/style.css", "/app/manifest.webmanifest", "/app/sw.js", "/app/icon.svg"} {
+		if st, _ := c.raw("GET", p, nil, ""); st != 200 {
+			t.Fatalf("%s: %d", p, st)
+		}
+	}
+	c.token = ""
+	if st, _ := c.raw("GET", "/app", nil, ""); st != 200 { // redirect followed to /app/
+		t.Fatalf("/app redirect: %d", st)
 	}
 	_ = time.Now
 }

@@ -1,3 +1,83 @@
 <!doctype html>
-<html lang="ru"><head><meta charset="utf-8"><title>Terroir</title></head>
-<body><p>Terroir PWA — placeholder.</p></body></html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#6b1d2a">
+  <title>Terroir</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Terroir</h1>
+    <div class="topbar-actions">
+      <button id="lang-btn" class="ghost" type="button">EN</button>
+      <button id="logout-btn" class="ghost hidden" type="button" data-i18n="logout">Выйти</button>
+    </div>
+  </header>
+
+  <div id="error" class="error hidden" role="alert"></div>
+
+  <!-- Login -->
+  <section id="login" class="screen hidden">
+    <form id="login-form" class="card">
+      <h2 data-i18n="loginTitle">Вход</h2>
+      <p class="muted" data-i18n="loginHint">Введите токен. Демо: dev-anton-token или dev-elena-token</p>
+      <input id="token-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="dev-anton-token" required>
+      <button type="submit" class="primary" data-i18n="loginBtn">Войти</button>
+    </form>
+  </section>
+
+  <main id="main" class="hidden">
+    <!-- Cellar -->
+    <section id="tab-cellar" class="screen">
+      <div id="summary" class="summary card"></div>
+      <div class="toolbar">
+        <input id="search" type="search" data-i18n-ph="search" placeholder="Поиск">
+        <button id="ready-chip" class="chip" type="button" data-i18n="readyChip">Пора пить</button>
+      </div>
+      <ul id="cellar-list" class="list"></ul>
+    </section>
+
+    <!-- Recipes -->
+    <section id="tab-recipes" class="screen hidden">
+      <ul id="recipe-list" class="list"></ul>
+    </section>
+
+    <!-- Taste -->
+    <section id="tab-taste" class="screen hidden">
+      <div id="profile" class="card"></div>
+      <form id="survey-form" class="card"></form>
+    </section>
+
+    <!-- Chat -->
+    <section id="tab-chat" class="screen hidden">
+      <div id="chat-log" class="chat-log"></div>
+      <form id="chat-form" class="chat-form">
+        <input id="chat-input" type="text" autocomplete="off" data-i18n-ph="chatPh" placeholder="Что открыть к стейку?">
+        <button type="submit" class="primary" data-i18n="send">Отпр.</button>
+      </form>
+    </section>
+  </main>
+
+  <nav id="tabs" class="tabs hidden">
+    <button type="button" data-tab="cellar" class="active"><span>🍷</span><span data-i18n="tabCellar">Погреб</span></button>
+    <button type="button" data-tab="recipes"><span>🍲</span><span data-i18n="tabRecipes">Рецепты</span></button>
+    <button type="button" data-tab="taste"><span>👅</span><span data-i18n="tabTaste">Вкус</span></button>
+    <button type="button" data-tab="chat"><span>💬</span><span data-i18n="tabChat">Чат</span></button>
+  </nav>
+
+  <!-- Modal (bottle card, drink form, recipe card) -->
+  <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+    <div class="modal-body">
+      <button id="modal-close" class="ghost close" type="button" aria-label="close">✕</button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
