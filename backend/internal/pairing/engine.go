@@ -119,10 +119,10 @@ func Score(in Input) Result {
 	if aff, ok := ingredientAffinity[r.MainIngredient][w.Color]; ok {
 		if aff > 0 {
 			s.add("color_ingredient", aff, fmt.Sprintf("%s вино — классика к блюду, где главное — %s", capital(colorRU[w.Color]), ingredientRU[r.MainIngredient]),
-				fmt.Sprintf("%s wine is a classic match for %s", w.Color, r.MainIngredient))
+				fmt.Sprintf("%s wine is a classic match for %s", capital(string(w.Color)), r.MainIngredient))
 		} else {
 			s.add("color_ingredient", aff, fmt.Sprintf("%s вино обычно не дружит с блюдом, где главное — %s", capital(colorRU[w.Color]), ingredientRU[r.MainIngredient]),
-				fmt.Sprintf("%s wine rarely suits %s", w.Color, r.MainIngredient))
+				fmt.Sprintf("%s wine rarely suits %s", capital(string(w.Color)), r.MainIngredient))
 		}
 	}
 
@@ -338,8 +338,11 @@ func capital(s string) string {
 	if len(r) == 0 {
 		return s
 	}
-	if r[0] >= 'а' && r[0] <= 'я' {
+	switch {
+	case r[0] >= 'а' && r[0] <= 'я':
 		r[0] -= 'а' - 'А'
+	case r[0] >= 'a' && r[0] <= 'z':
+		r[0] -= 'a' - 'A'
 	}
 	return string(r)
 }
