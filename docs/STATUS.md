@@ -1,6 +1,6 @@
 # Terroir — статус (2026-10-02)
 
-Видение: [`product/vision-2026-09.md`](product/vision-2026-09.md). Решения: [`DECISIONS.md`](DECISIONS.md). Отчёт сессии: [`sessions/2026-10-02.md`](sessions/2026-10-02.md).
+Видение: [`product/vision-2026-09.md`](product/vision-2026-09.md). Решения: [`DECISIONS.md`](DECISIONS.md).
 
 ## Функции
 
