@@ -1,121 +1,120 @@
 # Terroir
 
-**Персональный винный помощник с памятью** для себя и пары. В нём есть:
+**Персональный винный помощник с памятью** для одного человека или пары. Не сканер этикеток и не «чат, в который загрузили погреб»: в основе — структурированные данные и детерминированная логика, LLM — слой поверх.
 
-- **погреб**: бутылки, места хранения, окна питья, кнопка «выпил» с оценкой;
-- **профиль вкуса** у каждого свой, собирается короткими опросами;
-- **свои рецепты** со связкой «вино ↔ блюдо» в обе стороны;
-- **чат-ассистент**, который отвечает из *вашего* погреба и истории, а не из общих знаний.
+- **Погреб** — бутылки, места хранения, окна питья, «выпил» одним тапом с оценкой и заметкой. История не теряется: строка с нулём остаётся.
+- **Совместный погреб пары** — общие бутылки и рецепты, у каждого свой профиль вкуса.
+- **Профиль вкуса** — короткие опросы пачками по 5–7 вопросов, обновление профиля детерминированное.
+- **Свои рецепты** и связка в обе стороны: «что открыть к этому блюду» и «что приготовить к этой бутылке». Удачные пары учат движок.
+- **Чат-ассистент** отвечает из *вашего* погреба, профиля и истории и рекомендует только то, что есть.
 
-Структурированные данные и детерминированная логика (фильтры, окна питья, правила сочетаний) — основа. LLM работает слоем поверх.
-Видение: [`docs/product/vision-2026-09.md`](docs/product/vision-2026-09.md) · статус: [`docs/STATUS.md`](docs/STATUS.md) · решения: [`docs/DECISIONS.md`](docs/DECISIONS.md).
+> **Статус: MVP-ядро** (2026-10). Бэкенд, API, движок сочетаний, LLM-слой и PWA работают на демо-данных. Postgres, Docker и CI написаны, но ещё не прогонялись. Подробно — [`docs/STATUS.md`](docs/STATUS.md).
 
-## Быстрый старт за 1 минуту
+## Запуск за минуту
 
-Нужен только Go ≥ 1.26. Docker не нужен.
+Нужен только Go ≥ 1.26. Docker, ключи и сеть не нужны: по умолчанию SQLite и mock-LLM.
 
 ```bash
-make dev                      # SQLite + демо-данные + mock-LLM на :8080
-curl localhost:8080/health    # {"status":"ok","storage":"sqlite","llm_provider":"mock",...}
+make dev                         # SQLite + демо-данные + mock-LLM на :8080
+curl localhost:8080/health       # {"status":"ok","storage":"sqlite","llm_provider":"mock",...}
 open http://localhost:8080/app   # PWA; токен: dev-anton-token или dev-elena-token
 ```
 
 ```bash
 T="Authorization: Bearer dev-anton-token"
 curl -H "$T" localhost:8080/v1/cellar/summary
-curl -H "$T" "localhost:8080/v1/recipes/r-tteokbokki/wines?limit=3"
 curl -H "$T" -X POST localhost:8080/v1/chat -d '{"message":"Что открыть к стейку?"}'
+# → «К блюду „Стейк рибай“ я бы открыл Каберне Совиньон резерв … 2017 [item:i-cabernet-kuban]. Почему: …»
 ```
 
-Остальные примеры: [`docs/api/examples.sh`](docs/api/examples.sh). Спецификация: [`docs/api/openapi.yaml`](docs/api/openapi.yaml).
+```bash
+make test    # все тесты с -race
+make lint    # gofmt + go vet
+```
 
-| Команда | Что делает |
-|---|---|
-| `make dev` | API на SQLite (`tmp/terroir-dev.db`), автосид демо-дома, mock-LLM |
-| `make reset-dev` | удалить dev-базу (следующий `make dev` создаст её заново) |
-| `make seed` | засеять демо-данные (идемпотентно) |
-| `make test` | все тесты с `-race` |
-| `make lint` | gofmt + go vet (+ staticcheck, если установлен) |
-| `make build` | бинарь `bin/terroir-api` |
-| `make up` / `make down` | PostgreSQL + API в Docker |
-| `make test-pg` | тесты, включая интеграционные с Postgres (нужен `make up`) |
-
-С телефона в той же Wi-Fi сети: `http://<IP-ноутбука>:8080/app`.
+Демо-данные вымышленные: дом из двух пользователей, 22 бутылки (в основном Дон, Кубань, Крым, Кахетия), 11 рецептов, история и профили. Все команды, переменные окружения, переключение на реальный LLM и запуск на PostgreSQL — в [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## Архитектура
 
-```text
- PWA (/app, vanilla JS)   curl / будущий Telegram-бот
-            │                       │
-            ▼                       ▼
-   transport/http  ── JSON API v1, Bearer-токен, единый формат ошибок {error:{code,message}}
-            │
-   service         ── сценарии: погреб, «выпил», опрос, рецепты, сводка, CSV, чат
-     │      │   └── pairing  ── детерминированный движок сочетаний (score + причины RU/EN)
-     │      └────── llm      ── Provider: mock (по умолчанию) | openai_compat; бюджет; промпты (embed)
-     ▼
-   domain          ── типы и чистая логика (окна питья, валидация, профиль вкуса)
-   storage         ── интерфейсы репозиториев
-     └ sqlstore    ── одна реализация на database/sql: SQLite (modernc, без CGO) | PostgreSQL (pgx)
-                      миграции встроены (embed) и применяются при старте
+Монолит на Go: стандартный `net/http` (маршруты Go 1.22+), без фреймворков. PWA встроен в бинарь через `embed`, сборки фронтенда нет.
+
+```mermaid
+flowchart TD
+    PWA["PWA /app<br/>vanilla JS, RU/EN"] --> HTTP
+    CLI["curl / Telegram-бот<br/>(каркас)"] --> HTTP
+    HTTP["transport/http<br/>JSON API v1 · Bearer · единый формат ошибок"] --> SVC
+    SVC["service<br/>погреб · «выпил» · опрос · рецепты · чат · CSV/Markdown"]
+    SVC --> PAIR["pairing<br/>детерминированный движок сочетаний<br/>score + причины RU/EN"]
+    SVC --> LLM["llm<br/>Provider: mock | openai_compat<br/>месячный бюджет → 429"]
+    SVC --> DOM["domain<br/>окна питья · валидация · профиль вкуса"]
+    SVC --> ST["storage → sqlstore<br/>database/sql + embed-миграции"]
+    ST --> SQLITE[("SQLite<br/>modernc, без CGO")]
+    ST --> PG[("PostgreSQL<br/>pgx")]
+    LLM -.-> EXT["любой OpenAI-совместимый<br/>/chat/completions"]
 ```
 
-Монолит на Go, стандартный `net/http` (маршруты Go 1.22+), без фреймворков.
+### Как отвечает ассистент
 
-## Переменные окружения
+1. Интент определяется по ключевым словам («к стейку», «что купить снова»).
+2. Кандидаты подбирают **код**: движок сочетаний, окна питья, профиль и история.
+3. LLM получает кандидатов и сжатый погреб и только *формулирует* ответ.
+4. Ответ проверяется: каждая бутылка должна быть ссылкой `[item:<id>]` на реальную позицию погреба.
+5. Если модель сослалась на несуществующую бутылку, провайдер упал или кончился бюджет — детерминированный ответ с `"fallback": true`.
 
-Полный список — в [`.env.example`](.env.example). Главные:
+Так «рекомендует только то, что есть» гарантирует код, а не промпт. Mock выдаёт тот же детерминированный ответ, поэтому демо и тесты осмысленны без ключей.
 
-| Переменная | По умолчанию | Смысл |
-|---|---|---|
-| `STORAGE` | `sqlite` (или `postgres`, если задан `DATABASE_URL`) | `sqlite` \| `postgres` \| `memory` |
-| `SQLITE_PATH` | `terroir-dev.db` | файл SQLite |
-| `DATABASE_URL` | — | строка подключения PostgreSQL |
-| `AUTO_SEED` | `false` (`true` в `make dev`) | создать демо-дом при старте |
-| `AUTH_TOKENS` | — | `user_id:token,...` — дополнительные токены |
-| `TERROIR_TODAY` | — | зафиксировать «сегодня» (YYYY-MM-DD) для демо |
-| `LLM_PROVIDER` | `mock` | `mock` \| `openai_compat` |
-| `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | — | для `openai_compat` |
-| `LLM_AUTH_SCHEME` | `Bearer` | `Bearer` \| `Api-Key` |
-| `LLM_EXTRA_HEADERS` | — | `name:value,...`, только из белого списка |
-| `LLM_REASONING_EFFORT` | — | не отправляется, если пусто |
-| `LLM_TIMEOUT`, `LLM_MAX_RETRIES` | `30s`, `2` | ретраи на 429/5xx с backoff |
-| `LLM_MONTHLY_BUDGET`, `LLM_MONTHLY_TOKENS` | `0` (без лимита) | месячный лимит; при превышении чат отвечает `429 llm_budget_exceeded` |
+## Ключевые решения
 
-## Как переключить mock на настоящий провайдер
+Полный журнал с альтернативами — [`docs/DECISIONS.md`](docs/DECISIONS.md) (D-001…D-014).
 
-Нужен любой провайдер с OpenAI-совместимым `POST {base_url}/chat/completions`, доступный легально в вашем регионе. Пример — Yandex AI Studio:
+| Решение | Почему |
+|---|---|
+| Структура первична, LLM — «голос» (D-010) | Ров продукта — данные погреба и своя кухня; ChatGPT с памятью закрывает «просто чат» |
+| Одна реализация хранилища на `database/sql`: SQLite для dev и тестов, PostgreSQL для боевого (D-002) | Запуск одной командой без Docker, тот же код в проде |
+| Любой OpenAI-совместимый провайдер, mock по умолчанию | Нет привязки к вендору; тесты и демо без сети. Ретраи 429/5xx с backoff и `Retry-After`, белый список заголовков |
+| Месячный бюджет LLM в токенах и деньгах, проверка **до** вызова (D-011) | Платит один человек; при превышении `429 llm_budget_exceeded`, учёт в `llm_usage` |
+| Правила сочетаний в Go-коде, а не в YAML (D-009) | Типы, табличные тесты, причины рекомендации на RU/EN |
+| «Выпил» атомарно, без ухода в минус | Тест: 8–10 параллельных «выпил последней» → ровно один успех |
+| Деньги в минимальных единицах, ID — UUID из приложения (D-004) | Без float и без зависимости от БД |
+| PWA без сборки, встроенный в бинарь; Flutter — после проверки гипотезы (D-012) | Минимум инфраструктуры на этапе MVP |
+| Статические Bearer-токены вместо регистрации (D-007) | Закрытая бета на 2–50 человек |
 
-```bash
-LLM_PROVIDER=openai_compat \
-LLM_BASE_URL=https://llm.api.cloud.yandex.net/v1 \
-LLM_MODEL="gpt://<FOLDER_ID>/yandexgpt/latest" \
-LLM_API_KEY=<ключ> \
-LLM_AUTH_SCHEME=Api-Key \
-LLM_EXTRA_HEADERS=x-data-logging-enabled:false \
-LLM_MONTHLY_BUDGET=500 LLM_PRICE_PER_1K_INPUT=0.4 LLM_PRICE_PER_1K_OUTPUT=0.4 \
-make dev
-```
+## API
 
-`/health` покажет `llm_provider: openai_compat`. Если модель сошлётся на бутылку, которой нет в погребе, или провайдер упадёт, ассистент ответит детерминированно (`"fallback": true`).
-> Gemini, Anthropic и OpenAI в проекте не используются: регион не поддерживается. Прокси, VPN и туннели для обхода — тоже нет.
+30 эндпоинтов `/v1`: вина и бутылки (CRUD, фильтры по цвету, стране, сорту, месту, «пора пить»), «выпил», сводка и история, «купить снова», напоминания, опрос и профиль вкуса, рецепты и сочетания в обе стороны, обратная связь по паре, чат, экспорт/импорт CSV, импорт из Markdown-таблицы. Спецификация OpenAPI 3.1 — [`docs/api/openapi.yaml`](docs/api/openapi.yaml), проверенные примеры — [`docs/api/examples.sh`](docs/api/examples.sh).
 
-## Как запустить на PostgreSQL
+## Качество
 
-```bash
-make up                       # pgvector/pg16 + API (STORAGE=postgres, автосид)
-curl localhost:8080/ready     # storage: postgres, database: ok
-make test-pg                  # интеграционные тесты репозитория на реальном Postgres
-```
+- 92 тест-функции: табличные кейсы движка сочетаний, httptest на каждый эндпоинт, сквозной сценарий «вино → бутылка → выпил → сводка», гонки на последней бутылке, клиент LLM на `httptest`.
+- Покрытие: domain 96 % · pairing 98 % · llm 97 % · service 86 % · http 82 % · sqlstore 79 %.
+- **10 эталонных вопросов** к ассистенту с проверкой свойств ответа (бутылка есть в погребе, окно питья учтено, отвергнутые сорта не предлагаются) — 10/10 на mock. Тот же набор — для слепого сравнения с универсальным чат-ботом: [`docs/eval/blind-questions.md`](docs/eval/blind-questions.md).
+- GitHub Actions: gofmt, go vet, `go test -race`.
 
-Или без Docker, со своим Postgres: `STORAGE=postgres DATABASE_URL=postgres://... AUTO_SEED=true go run ./cmd/api` (из `backend/`).
+## Стек
+
+Go 1.26 · `net/http` · `database/sql` · SQLite (`modernc.org/sqlite`, без CGO) · PostgreSQL (`pgx`) · embed-миграции · `log/slog` · vanilla JS PWA (service worker, manifest) · OpenAI-совместимый LLM API · Docker (distroless) · GitHub Actions.
 
 ## Структура
 
 ```text
-backend/    Go API (cmd/api, internal/*), миграции в internal/storage/sqlstore/migrations
-docs/       видение, статус, решения, API, архитектура, эталонные вопросы, отчёты сессий
-infra/      init-скрипты PostgreSQL
+backend/
+  cmd/api/              точка входа
+  internal/domain/      типы и чистая логика
+  internal/service/     сценарии и ассистент
+  internal/pairing/     движок сочетаний
+  internal/llm/         провайдеры, бюджет, промпты
+  internal/storage/     интерфейсы и sqlstore (SQLite | Postgres)
+  internal/transport/   HTTP API v1
+  internal/webapp/      встроенный PWA
+  internal/telegram/    каркас бота
+  internal/eval/        эталонные вопросы
+docs/                   статус, решения, API, архитектура, разработка
+infra/                  init-скрипты PostgreSQL
 ```
 
-`.env` в git не коммитится (шаблон — `.env.example`). Демо-данные вымышленные.
+## Что дальше
+
+- Прогнать Postgres-тесты и Docker-сборку, запустить CI.
+- Формы добавления бутылок и рецептов в PWA (сейчас — через API и импорт).
+- Подключить реального провайдера и прогнать эталонные вопросы на нём.
+- Закрытая бета; критерии kill / continue — в [`docs/product/vision-2026-09.md`](docs/product/vision-2026-09.md).
